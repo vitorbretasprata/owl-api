@@ -2,7 +2,7 @@ import { BaseModel, column } from '@ioc:Adonis/Lucid/Orm'
 
 export default class ScheduledClass extends BaseModel {
   @column({ isPrimary: true })
-  public id: number
+  public id: number;
 
   @column()
   public idStudent: number;
