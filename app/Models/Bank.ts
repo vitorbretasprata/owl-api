@@ -5,6 +5,9 @@ export default class Bank extends BaseModel {
   public id: number;
 
   @column()
+  public code: string;
+
+  @column()
   public name: string;
 
 }

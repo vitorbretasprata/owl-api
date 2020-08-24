@@ -10,7 +10,7 @@ export default class AccountTeachers extends BaseSchema {
       table.integer("lecture_time")
       table.float("lecture_value")
       table.float("movement_value")
-      table.integer("phone")
+      table.string("phone")
     })
   }
 

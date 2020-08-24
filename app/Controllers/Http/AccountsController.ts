@@ -3,84 +3,150 @@ import { rules, schema, validator } from '@ioc:Adonis/Core/Validator';
 import Account from "App/Models/Account";
 import AccountTypeStudent from "App/Models/AccountTypeStudent";
 import AccountTypeTeacher from "App/Models/AccountTypeTeacher";
-
-
+import AccountBank from "App/Models/AccountBank";
+import Bank from "App/Models/Bank";
+import LectureName from "App/Models/LectureName";
 
 export default class AccountsController {
 
-    public async SetAccountInfo({ response, request } : HttpContextContract) {
+    public async SetAccountInfo({ response, request, auth } : HttpContextContract) {
         const { type, info } = request.all();
-        let status;
-        switch(type) {
-            case 1: 
-                status = await this.SetAccountInfoStudent(type, info);
-                break;
-            case 2: 
-                status = await this.SetAccountInfoParent(type, info);
-                break;
-            case 3: 
-                status = await this.SetAccountInfoTeacher(type, info);
-                break;
-            default:
-                response.abort("Tipo de conta inválida");
-                break;
-        }
+        const authId = auth.user!.id;
+        try {
 
-        if(!status) {
-            response.abort("Error ao salvar dados do usuário");
-        }
+            /*
+                const accountInfo = {
+                    type,
+                    authId,
+                    city: info.city || null,
+                    countryId: info.countryId || null,
+                    stateId: info.stateId || null
+                }
 
-        response.ok(200);
+                const validationSchema = schema.create({
+                    authId: schema.number([
+                        rules.required(),
+                        rules.unique({ table: "accounts", column: "authentication_id" })
+                    ]),
+                    type: schema.number([
+                        rules.required(),
+                    ])
+                });
+
+                const validatedSchema = await validator.validate({
+                    schema: validationSchema,
+                    data: accountInfo
+                });
+
+                const newAccount = await Account.create({
+                    type: validatedSchema.type,
+                    authenticationId: validatedSchema.authId
+                });
+            */
+
+            const newAccount = {
+                id: 5
+            }
+
+            let status;
+            switch(type) {
+                case 1: 
+                    status = await this.SetAccountInfoStudent(info, newAccount.id);
+                    break;
+                case 2: 
+                    status = await this.SetAccountInfoParent(info, newAccount.id);
+                    break;
+                case 3: 
+                    status = await this.SetAccountInfoTeacher(info, newAccount.id);
+                    break;
+                default:
+                    response.abort("Tipo de conta inválida");
+                    break;
+            }
+
+            if(!status) {
+                response.abort("Error ao salvar dados do usuário");
+            }
+
+            //const account = await AccountTypeTeacher.query().where("id", 8).preload("bankingAccount").preload("lectures");
+
+            response.ok(200);
+
+        } catch (error) {
+            console.log(error)
+            response.abort("Error ao salvar dados do usuário", 500);
+        }
     }
 
-    public async SetAccountInfoStudent(type : Number, Info : Object) {
+    public async SetAccountInfoStudent(Info : Object, idAccount: number) {
 
         return true;
 
     }
 
-    public async SetAccountInfoTeacher(type : Number, Info : Object) {
+    public async SetAccountInfoTeacher(Info : any = {}, idAccount: number) {
 
-        const validationSchema = schema.create({
-            phone: schema.number([
-                rules.required()
-            ]),
-            lectureTime: schema.number([
-                rules.required()
-            ]),
-            lectureValue: schema.number([
-                rules.required()
-            ]),
-            movementValue: schema.number([
-                rules.required()
-            ]),
-            bankInfo: schema.object().members({
-                completeName: schema.string(),
-                cpf: schema.string(),
-                agency: schema.number(),
-                bankAccount: schema.number()
-            }),
-            lectures: schema.object([
-            ]).members({
-                "1": schema.array().anyMembers(),
-                "5": schema.array().anyMembers(),
-            })
-        });
+
+        
+        /*
+           const validationSchema = schema.create({
+                phone: schema.string({
+                    trim: true
+                }, [
+                    rules.required(),
+                    rules.unique({ table: "account_type_teachers", column: "phone" })
+                ]),
+                lectureTime: schema.number([
+                    rules.required()
+                ]),
+                lectureValue: schema.number([
+                    rules.required()
+                ]),
+                movementValue: schema.number([
+                    rules.required()
+                ]),
+                bankInfo: schema.object().members({
+                    completeName: schema.string({
+                        trim: true
+                    }),
+                    cpf: schema.string(),
+                    agency: schema.number(),
+                    bankAccount: schema.number(),
+                    code: schema.string({
+                        trim: true
+                    }),
+                }),
+                lectures: schema.object().members({})
+            });
+        */
+        
 
         try {
+            /*
             const validatedSchema = await validator.validate({
                 schema: validationSchema,
                 data: Info
             });
 
-            const lecturesInfo = Object.entries(validatedSchema.lectures).map(lecture => {
-                return {
-                    name: lecture[0],
-                    classes: lecture[1]
-                }
-            });
 
-            console.log(lecturesInfo)
+            
+                const newAccountTeacher = await AccountTypeTeacher.create({
+                    accountId: idAccount,
+                    lectureTime: validatedSchema.lectureTime,
+                    lectureValue: validatedSchema.lectureValue,
+                    movementValue: validatedSchema.movementValue,
+                    phone: validatedSchema.phone
+                });
+            */
+
+            const newAccountTeacher = {
+                id: 8
+            }
+            
+
+            // await this.updateBankAccount(validatedSchema.bankInfo, newAccountTeacher.id);
+
+            await this.updateLectures(Info.lectures, newAccountTeacher.id);
 
             return true;
 
@@ -90,7 +156,55 @@ export default class AccountsController {
 
     }
 
-    public async SetAccountInfoParent(type : Number, Info : Object) {
+    public async updateBankAccount(bankInfo: any = {}, idAccountTeacher: number) {
+        const bank = await Bank.findByOrFail('code', bankInfo.code);
+
+        await AccountBank.updateOrCreate({
+            accountTypeTeacherId: idAccountTeacher,
+            completeName: bankInfo.completeName,
+            agency: bankInfo.agency,
+            accountNumber: bankInfo.bankAccount,
+            cpf: bankInfo.cpf,
+            bankId: bank.id
+        }, {
+            accountTypeTeacherId: idAccountTeacher
+        });
+    }
+
+    public async updateLectures(lectures: object, idAccountTeacher: number) {
+        let teacherLecture : LectureName[] = []
+
+        Object.entries(lectures).forEach((lecture : Array<any>) => {
+            const lectureId = lecture[0];
+            const years = lecture[1];
+
+            years.forEach(e => {
+                const element : any = {
+                    account_teacher_id: idAccountTeacher,
+                    lecture_id: parseInt(lectureId, 10),
+                    year_code: e
+                }
+
+                teacherLecture.push(element)
+            });
+        });
+
+        const teacher = await AccountTypeTeacher.find(idAccountTeacher);
+
+        await teacher?.related("lectures").detach();
+
+        teacherLecture.forEach((lecture: any) => {
+            teacher?.related('lectures').attach({
+                [lecture.lecture_id]: {
+                    year_code: lecture.year_code,
+                }
+            }).catch(err => {
+                console.log(err)
+            });
+        });
+    }
+
+    public async SetAccountInfoParent(Info : Object, idAccount: number) {
 
         return true;
     }

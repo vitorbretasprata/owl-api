@@ -13,9 +13,6 @@ export default class Account extends BaseModel {
   @column()
   public authenticationId : number;
 
-  @hasOne(() => ApiToken)
-  public apiToken : HasOne<typeof ApiToken>;  
-
   @column()
   public type : number; 
 
@@ -40,9 +37,4 @@ export default class Account extends BaseModel {
   @column()
   public city : String;
 
-  @column.dateTime({ autoCreate: true })
-  public createdAt: DateTime
-
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
-  public updatedAt: DateTime
 }

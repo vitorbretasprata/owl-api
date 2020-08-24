@@ -1,7 +1,6 @@
-import { DateTime } from 'luxon'
 import { BaseModel, column, hasOne, HasOne, HasMany, hasMany, manyToMany, ManyToMany } from '@ioc:Adonis/Lucid/Orm';
 import ScheduledClass from "App/Models/ScheduledClass";
-import LectureName from "App/Models/LectureName";
+import Lectures from "App/Models/Lecture";
 import AccountBank from "App/Models/AccountBank";
 import Transaction from "App/Models/Transaction";
 
@@ -10,10 +9,17 @@ export default class AccountTypeTeacher extends BaseModel {
   public id: number;
 
   @column()
-  public idAccount: number;
+  public accountId: number;
 
-  @manyToMany(() => LectureName)
-  public lectures : ManyToMany<typeof LectureName>;
+  @manyToMany(() => Lectures, {
+    pivotTable: 'teacher_lectures',
+    pivotColumns: ['year_code'],
+    localKey: 'id',
+    pivotForeignKey: 'account_teacher_id',
+    relatedKey: 'id',
+    pivotRelatedForeignKey: 'lecture_id',
+  })
+  public lectures : ManyToMany<typeof Lectures>;
 
   @hasMany(() => ScheduledClass)
   public scheduledClasses : HasMany<typeof ScheduledClass>;
@@ -34,11 +40,6 @@ export default class AccountTypeTeacher extends BaseModel {
   public movementValue: number;
 
   @column()
-  public phone : number;
+  public phone : string;
 
-  @column.dateTime({ autoCreate: true })
-  public createdAt: DateTime;
-
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
-  public updatedAt: DateTime;
 }
