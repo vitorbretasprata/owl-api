@@ -12,41 +12,34 @@ export default class AccountsController {
     public async SetAccountInfo({ response, request, auth } : HttpContextContract) {
         const { type, info } = request.all();
         const authId = auth.user!.id;
+        const fullName = auth.user!.name;
+
         try {
 
-            /*
-                const accountInfo = {
-                    type,
-                    authId,
-                    city: info.city || null,
-                    countryId: info.countryId || null,
-                    stateId: info.stateId || null
-                }
-
-                const validationSchema = schema.create({
-                    authId: schema.number([
-                        rules.required(),
-                        rules.unique({ table: "accounts", column: "authentication_id" })
-                    ]),
-                    type: schema.number([
-                        rules.required(),
-                    ])
-                });
-
-                const validatedSchema = await validator.validate({
-                    schema: validationSchema,
-                    data: accountInfo
-                });
-
-                const newAccount = await Account.create({
-                    type: validatedSchema.type,
-                    authenticationId: validatedSchema.authId
-                });
-            */
-
-            const newAccount = {
-                id: 5
+            const accountInfo = {
+                type,
+                authId
             }
+
+            const validationSchema = schema.create({
+                authId: schema.number([
+                    rules.required(),
+                    rules.unique({ table: "accounts", column: "authentication_id" })
+                ]),
+                type: schema.number([
+                    rules.required(),
+                ])
+            });
+
+            const validatedSchema = await validator.validate({
+                schema: validationSchema,
+                data: accountInfo
+            });
+
+            const newAccount = await Account.create({
+                type: validatedSchema.type,
+                authenticationId: validatedSchema.authId
+            });
 
             let status;
             switch(type) {
@@ -57,7 +50,7 @@ export default class AccountsController {
                     status = await this.SetAccountInfoParent(info, newAccount.id);
                     break;
                 case 3: 
-                    status = await this.SetAccountInfoTeacher(info, newAccount.id);
+                    status = await this.SetAccountInfoTeacher(info, newAccount.id, fullName);
                     break;
                 default:
                     response.abort("Tipo de conta inválida");
@@ -67,8 +60,6 @@ export default class AccountsController {
             if(!status) {
                 response.abort("Error ao salvar dados do usuário");
             }
-
-            //const account = await AccountTypeTeacher.query().where("id", 8).preload("bankingAccount").preload("lectures");
 
             response.ok(200);
 
@@ -80,71 +71,70 @@ export default class AccountsController {
 
     public async SetAccountInfoStudent(Info : Object, idAccount: number) {
 
-        return true;
+        try {
 
+            await AccountTypeStudent.create({
+                idAccount: idAccount
+            });
+
+            return true;
+
+        } catch(error) {
+            console.log(error);
+
+            return false;
+        }
     }
 
-    public async SetAccountInfoTeacher(Info : any = {}, idAccount: number) {
+    public async SetAccountInfoTeacher(Info : any = {}, idAccount: number, fullName : string) {
 
-
-        
-        /*
-           const validationSchema = schema.create({
-                phone: schema.string({
+        const validationSchema = schema.create({
+            phone: schema.string({
+                trim: true
+            }, [
+                rules.required(),
+                rules.unique({ table: "account_type_teachers", column: "phone" })
+            ]),
+            lectureTime: schema.number([
+                rules.required()
+            ]),
+            lectureValue: schema.number([
+                rules.required()
+            ]),
+            movementValue: schema.number([
+                rules.required()
+            ]),
+            bankInfo: schema.object().members({
+                completeName: schema.string({
                     trim: true
-                }, [
-                    rules.required(),
-                    rules.unique({ table: "account_type_teachers", column: "phone" })
-                ]),
-                lectureTime: schema.number([
-                    rules.required()
-                ]),
-                lectureValue: schema.number([
-                    rules.required()
-                ]),
-                movementValue: schema.number([
-                    rules.required()
-                ]),
-                bankInfo: schema.object().members({
-                    completeName: schema.string({
-                        trim: true
-                    }),
-                    cpf: schema.string(),
-                    agency: schema.number(),
-                    bankAccount: schema.number(),
-                    code: schema.string({
-                        trim: true
-                    }),
                 }),
-                lectures: schema.object().members({})
-            });
-        */
-        
+                cpf: schema.string(),
+                agency: schema.number(),
+                bankAccount: schema.number(),
+                code: schema.string({
+                    trim: true
+                }),
+            }),
+            lectures: schema.object().members({})
+        });
 
         try {
-            /*
+
             const validatedSchema = await validator.validate({
                 schema: validationSchema,
                 data: Info
             });
 
 
-            
-                const newAccountTeacher = await AccountTypeTeacher.create({
-                    accountId: idAccount,
-                    lectureTime: validatedSchema.lectureTime,
-                    lectureValue: validatedSchema.lectureValue,
-                    movementValue: validatedSchema.movementValue,
-                    phone: validatedSchema.phone
-                });
-            */
+            const newAccountTeacher = await AccountTypeTeacher.create({
+                accountId: idAccount,
+                lectureTime: validatedSchema.lectureTime,
+                lectureValue: validatedSchema.lectureValue,
+                movementValue: validatedSchema.movementValue,
+                phone: validatedSchema.phone
+            });
 
-            const newAccountTeacher = {
-                id: 8
-            }
-            
-
-            // await this.updateBankAccount(validatedSchema.bankInfo, newAccountTeacher.id);
+            await this.updateBankAccount(validatedSchema.bankInfo, newAccountTeacher.id);
 
             await this.updateLectures(Info.lectures, newAccountTeacher.id);
 
