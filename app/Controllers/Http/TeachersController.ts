@@ -5,6 +5,7 @@ import Account from 'App/Models/Account';
 import { rules, schema, validator } from '@ioc:Adonis/Core/Validator';
 import AccountTypeStudent from 'App/Models/AccountTypeStudent';
 import ScheduledClass from 'App/Models/ScheduledClass';
+import { ModelObject } from '@ioc:Adonis/Lucid/Model';
 
 export default class TeachersController {
 
@@ -48,22 +49,7 @@ export default class TeachersController {
                 response.abort("Seu tipo de conta não tem permissão para marcar aula.");
             }
 
-            response.ok(userType);
-
-        } catch(error) {
-            console.log(error);
-            response.abort({
-                code: 500,
-                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
-                detail: error.body
-            });
-        }
-    }
-
-    public async schedule({ response, request, auth } : HttpContextContract) {
-        try {
-
-            const { scheduleInfo } = request.all();
+            const scheduleInfo = request.all();
 
             const validationSchema = schema.create({
                 idStudent: schema.number([
@@ -72,7 +58,9 @@ export default class TeachersController {
                 idTeacher: schema.number([
                     rules.required(),
                 ]),
-                date: schema.date({}, [
+                date: schema.date({
+                    format: "yyyy-MM-dd HH:mm"
+                }, [
                     rules.required()
                 ]),
                 location: schema.string({
@@ -88,40 +76,65 @@ export default class TeachersController {
                 ])
             });
 
-            const validatedSchema = await validator.validate({
+            let validatedSchema = await validator.validate({
                 schema: validationSchema,
                 data: scheduleInfo
             });
 
-            await ScheduledClass.create({
-                ...validatedSchema,
-                status: 1
-            });
+            const res = await this.updateOrCreateClass(validatedSchema, userType?.type);
 
-            response.ok(200);
-
-        } catch(error) {
-            response.abort({
-                code: 500,
-                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
-                detail: error.body
-            });
-        }
-    }
-
-    public async updateScheduledClass({ response, request, auth } : HttpContextContract) {
-        const { status, scheduleId } = request.all();
-
-        try {
-            if(status === 2 || status === 3) {
-                await ScheduledClass.query().where("id", scheduleId).update("status", status);
-            } else {                
-                await ScheduledClass.query().where("id", scheduleId).delete();
+            if(!res) {
+                response.abort("Ocorreu um error na hora de agendar a aula, tente novamente.");
             }
 
-            response.ok(200);
+            response.ok(userType);
 
         } catch(error) {
+            console.log(error);
+            response.abort({
+                code: 500,
+                default: "Ocorreu um error na hora de agendar a aula, tente novamente.",
+                detail: error.body
+            });
+        }
+    }
+
+    public async ConfirmClass({ response, request, auth } : HttpContextContract) {
+        try {
+            const id = auth.user?.id || -1;
+
+            const userType = await Account.query().select(["type"]).where("authentication_id", id).first();
+
+            if(userType?.type !== 3) {
+                response.abort("Seu tipo de conta não tem permissão para marcar aula.");
+            }
+
+            const requestData = request.all();
+
+            const validationSchema = schema.create({
+                idClass: schema.number([
+                    rules.required(),
+                ]),
+                statusClass: schema.number([
+                    rules.required(),
+                ])
+            });
+
+            const validatedSchema = await validator.validate({
+                schema: validationSchema,
+                data: requestData
+            });
+
+            const res = await this.updateOrCreateClass(validatedSchema.statusClass, userType?.type, validatedSchema.idClass);
+
+            if(!res) {
+                response.abort("Ocorreu um error na hora de confirmar a aula, tente novamente.");
+            }
+
+            response.ok("Solicitação de agendamento de aula criada com sucesso, aguarde a resposta do professor.");
+
+        } catch(error) {
+            console.log(error);
             response.abort({
                 code: 500,
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
@@ -130,48 +143,56 @@ export default class TeachersController {
         }
     }
 
+    /**
+     * 
+     * @param param0 
+     */
     public async getClassesDate({ response, request, auth } : HttpContextContract) {
         try {
             const { date } = request.all();
 
-            const userId = await this.getUserId(auth.user?.id);
-
-            if(!userId) {
-                response.abort("Usuário não encontrado.");
+            const userType = await this.getUserId(auth.user?.id);
+            if(userType === false) {
+                response.abort("Usuário não encontrado");
             }
 
+            const columnType = (userType && userType.type === 1) ? 'student_id' : 'teacher_id';
+            const userId = (userType && userType.id) ? userType.id : 0;
 
-        } catch(error) {
-            
-        }
-    }
+            const classes = await Database.rawQuery(`SELECT * FROM scheduled_classes WHERE ${columnType} = ? AND date LIKE ?`, [userId, `${date}%`]);
 
-    public async getUserId(authId) {
-        try {
-            const account = await Account.query().select(["id", "type"]).where("authentication_id", authId).first();
-            let userTypeId;
+            response.ok(classes[0]);
 
-            if(account?.type === 1) 
-                userTypeId = await AccountTypeStudent.query().select(["id"]).where("student_id", account.id);
-            else
-                userTypeId = await AccountTypeTeacher.query().select(["id"]).where("teacher_id", account.id);
-
-            return userTypeId.id;
         } catch(error) {
             console.log(error);
-
-            return false;
-            
+            response.abort({
+                code: 500,
+                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
+                detail: error.body
+            });
         }
     }
 
-
-
+    /**
+     * 
+     * @param param0 
+     */
     public async getScheduledClass({ response, request } : HttpContextContract) {
         const { scheduleId } = request.all();
 
         try {
-            const scheduledClass = ScheduledClass.query().where("id", scheduleId).firstOrFail();
+            const scheduledClass : object = await ScheduledClass.query().where("id", scheduleId).firstOrFail();
+
+            if(!scheduledClass) {
+                response.abort("Aula não encontrada");
+            }
+
+            const teacherName = await AccountTypeTeacher.query().select(["full_name"]).where("id", scheduledClass.teacherId).firstOrFail();
+            const studentName = await this.getStudentFullName(scheduledClass.studentId);
+
+            if(!teacherName || !studentName) {
+                response.abort("Nome do estudante ou do professor está faltando.");
+            }
 
             response.ok(scheduledClass);
 
@@ -184,19 +205,142 @@ export default class TeachersController {
         }
     }
 
-    public async CancelClass({ response, request, auth } : HttpContextContract) {
+    /**
+     * 
+     * @param param0 
+     */
+    public async CancelClass({ response, params, auth } : HttpContextContract) {
         try {
-            const { classId } = request.all();
+            const { classId } = params;
             const id = auth.user?.id || -1;
 
-            const userTypeId = await this.getUserId(id);
+            const userType = await this.getUserId(id);
 
-            await Database.rawQuery(`DELETE FROM schedule_classes WHERE student_id = ${userTypeId} OR teacher_id = ${userTypeId} AND id = ${classId}`);
+            if(userType === false) {
+                response.abort("Usuário não encontrado");
+            }
+
+            const columnType = (userType && userType.type === 1) ? 'student_id' : 'teacher_id';
+            const userId = (userType && userType.id) ? userType.id : 0;
+
+            await Database.rawQuery(`DELETE FROM scheduled_classes WHERE ${columnType} = ? AND id = ?`, [userId, classId]);
 
             response.ok(200);
 
         } catch(error) {
-            response.abort("Ocorreu um error na hora de listar os professores, tente mais tarde.");
+            response.abort({
+                code: 500,
+                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
+                detail: error.body
+            });
+        }
+    }
+
+    /** Private classes */
+
+    private async getStudentFullName(studentId : number = 0) {
+        try {
+
+            
+
+            return false;
+        } catch(error) {
+            console.log(error);
+            return false;
+        }
+    }
+
+    private async updateOrCreateClass(data : any, userType : number = 0, idClass : number = 0) {
+        try {
+
+            if(typeof data === "object" && userType === 1) {
+                const scheduleDate = `${data.date.year}-${data.date.month}-${data.date.day} ${data.date.hour}:${data.date.minute}`;
+
+                await ScheduledClass.create({
+                    idStudent: data.idStudent,
+                    idTeacher: data.idTeacher,
+                    date: scheduleDate,
+                    needMovement: data.needMovement,
+                    totalValue: data.totalValue,
+                    location: data.location,
+                    status: 1
+                });
+
+                return true;
+            }
+
+            if(typeof data === "number" && userType === 3) {
+                const scheduledClass = await this.updateScheduledClass(data, idClass);
+
+                return scheduledClass;
+            }
+
+            return false;
+        } catch(error) {
+            console.log(error);
+            return false;
+        }
+    }
+
+    private async updateScheduledClass(status : number, idClass : number = 0) {
+        try {
+            if(status === 2) {
+                const res = await ScheduledClass.query().where("id", idClass).update({
+                    status: status
+                });
+
+                return true;
+            }
+
+            return false;
+
+        } catch(error) {
+            console.log(error)
+            return false;
+        }
+    }
+
+    private async getUserId(authId) {
+        try {
+            const account = await Account.query().select(["id", "type"]).where("authentication_id", authId).first();
+
+            const accountId = account?.id;
+
+            if(accountId) {
+                if(account?.type === 1) {
+                    const accountStudentId = await this.getAccountTypeId(accountId, AccountTypeStudent);
+
+                    return {
+                        id: accountStudentId.id,
+                        type: account?.type
+                    };
+                }
+
+                if(account?.type === 3) {
+                    const accountTeacherId = await this.getAccountTypeId(accountId, AccountTypeTeacher);
+
+                    return {
+                        id: accountTeacherId.id,
+                        type: account?.type
+                    };
+                }
+            }
+
+            return false;
+        } catch(error) {
+            console.log(error);
+
+            return false;
+        }
+    }
+
+    private async getAccountTypeId(accountId : number, model: ModelObject) {
+        try {
+            const accountTypeId = await model.query().select(["id"]).where("account_id", accountId).first();
+
+           return accountTypeId.toJSON();
+        } catch(error) {
+            return false;
         }
     }
 }

@@ -5,10 +5,10 @@ export default class ScheduledClass extends BaseModel {
   @column({ isPrimary: true })
   public id: number;
 
-  @column()
+  @column({ columnName: "student_id" })
   public idStudent: number;
 
-  @column()
+  @column({ columnName: "teacher_id" })
   public idTeacher: number;
 
   @column()

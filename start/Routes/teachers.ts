@@ -4,7 +4,7 @@ Route.group(() => {
     Route.get("/listTeachers", "TeachersController.ListTeachers"),
     Route.post("/getDate", "TeachersController.getClassesDate"),
     Route.get("/getScheduledClass", "TeachersController.getScheduledClass"),
-    Route.put("/updateScheduledClass", "TeachersController.updateScheduledClass"),
+    Route.put("/confirm", "TeachersController.ConfirmClass"),
     Route.post("/schedule", "TeachersController.ScheduleClass"),
-    Route.post("/cancel", "TeachersController.CancelClass")
+    Route.delete("/cancel/:classId", "TeachersController.CancelClass")
 }).prefix("/teachers").middleware('auth');
