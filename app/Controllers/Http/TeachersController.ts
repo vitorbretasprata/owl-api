@@ -177,29 +177,35 @@ export default class TeachersController {
      * 
      * @param param0 
      */
-    public async getScheduledClass({ response, request } : HttpContextContract) {
-        const { scheduleId } = request.all();
+    public async GetScheduledClass({ response, params } : HttpContextContract) {
+        const { classId } = params;
 
         try {
-            const scheduledClass : object = await ScheduledClass.query().where("id", scheduleId).firstOrFail();
+            const scheduledClass = await ScheduledClass.query().where("id", classId).first();
 
             if(!scheduledClass) {
-                response.abort("Aula não encontrada");
+                response.abort("Aula não encontrada.");
             }
 
-            const teacherName = await AccountTypeTeacher.query().select(["full_name"]).where("id", scheduledClass.teacherId).firstOrFail();
-            const studentName = await this.getStudentFullName(scheduledClass.studentId);
+            const teacherName = await this.getUserFullName(scheduledClass?.idTeacher, AccountTypeTeacher);
+            const studentName = await this.getUserFullName(scheduledClass?.idStudent, AccountTypeStudent);
 
             if(!teacherName || !studentName) {
                 response.abort("Nome do estudante ou do professor está faltando.");
             }
 
-            response.ok(scheduledClass);
+            response.ok({
+                status: 200,
+                ScheduleClass: scheduledClass,
+                teacherName: teacherName.completeName,
+                studentName: studentName.completeName
+            });
 
         } catch(error) {
+            console.log(error);
             response.abort({
                 code: 500,
-                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
+                default: "Ocorreu um error na hora de buscar a aula, tente mais tarde.",
                 detail: error.body
             });
         }
@@ -238,15 +244,15 @@ export default class TeachersController {
 
     /** Private classes */
 
-    private async getStudentFullName(studentId : number = 0) {
+    private async getUserFullName(userId : number = 0, model : ModelObject) {
         try {
 
-            
+            const fullName = await model.query().select(["complete_name"]).where("id", userId).first();
 
-            return false;
+            return fullName;
         } catch(error) {
             console.log(error);
-            return false;
+            return "";
         }
     }
 

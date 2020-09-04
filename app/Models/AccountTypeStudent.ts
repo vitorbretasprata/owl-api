@@ -11,6 +11,9 @@ export default class AccountTypeStudent extends BaseModel {
   })
   public idAccount: number;
 
+  @column()
+  public completeName: string;
+
   @hasMany(() => Transaction)
   public transactions : HasMany<typeof Transaction>;
 

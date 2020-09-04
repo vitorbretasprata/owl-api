@@ -40,6 +40,9 @@ export default class AccountTypeTeacher extends BaseModel {
   public movementValue: number;
 
   @column()
+  public completeName: string;
+
+  @column()
   public phone : string;
 
 }

@@ -1,6 +1,4 @@
-import { DateTime } from 'luxon';
 import { BaseModel, column, hasOne, HasOne, hasMany, HasMany } from '@ioc:Adonis/Lucid/Orm';
-import ApiToken from "App/Models/ApiToken";
 import Notification from "App/Models/Notification";
 import AccountTypeParent from "App/Models/AccountTypeParent";
 import AccountTypeStudent from "App/Models/AccountTypeStudent";
