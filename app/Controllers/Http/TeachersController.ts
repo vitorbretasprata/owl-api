@@ -147,7 +147,7 @@ export default class TeachersController {
      * 
      * @param param0 
      */
-    public async getClassesDate({ response, request, auth } : HttpContextContract) {
+    public async GetClassesDate({ response, request, auth } : HttpContextContract) {
         try {
             const { date } = request.all();
 
@@ -187,8 +187,8 @@ export default class TeachersController {
                 response.abort("Aula não encontrada.");
             }
 
-            const teacherName = await this.getUserFullName(scheduledClass?.idTeacher, AccountTypeTeacher);
-            const studentName = await this.getUserFullName(scheduledClass?.idStudent, AccountTypeStudent);
+            const teacherName = await this.GetUserFullName(scheduledClass?.idTeacher, AccountTypeTeacher);
+            const studentName = await this.GetUserFullName(scheduledClass?.idStudent, AccountTypeStudent);
 
             if(!teacherName || !studentName) {
                 response.abort("Nome do estudante ou do professor está faltando.");
@@ -244,7 +244,7 @@ export default class TeachersController {
 
     /** Private classes */
 
-    private async getUserFullName(userId : number = 0, model : ModelObject) {
+    private async GetUserFullName(userId : number = 0, model : ModelObject) {
         try {
 
             const fullName = await model.query().select(["complete_name"]).where("id", userId).first();
