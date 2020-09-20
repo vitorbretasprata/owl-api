@@ -29,6 +29,9 @@ export default class Account extends BaseModel {
   @column()
   public countryId : number;
 
+  @column()
+  public tokenNotification : string;
+
   @column({ columnName: "uf" })
   public ufId : number;
 

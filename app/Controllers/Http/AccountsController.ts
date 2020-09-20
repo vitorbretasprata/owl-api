@@ -70,6 +70,30 @@ export default class AccountsController {
         }
     }
 
+    public async GetAccountInfo({ response, auth } : HttpContextContract) {
+        const authId = auth.user!.id;
+
+        try {
+            const accountInfo = await Account
+                .query()
+                .select()
+                .where("authentication_id", authId)
+                .preload("accountTypeTeacher", 
+                    acc => acc.preload("bankingAccount").preload("lectures"))
+                .first();
+
+            if(!accountInfo) {
+                response.abort("Usuário não encontrado", 404);
+            }
+
+            response.ok(accountInfo);
+
+        } catch (error) {
+            console.log(error)
+            response.abort("Usuário não encontrado", 500);
+        }
+    }
+
     public async UpdateTeacherInfo({ response, request, auth } : HttpContextContract) {
 
         try {
@@ -148,7 +172,6 @@ export default class AccountsController {
             await this.updateLectures(validatedSchema.lectures, accountTeacherId);
 
             response.ok({
-                status: 200,
                 message: "Matérias atualizadas com sucesso!"
             });
 
@@ -167,16 +190,10 @@ export default class AccountsController {
 
         try {
 
-            const authId = auth.user!.id;
-            const bankInfo = request.all();
-
-            const accountTeacherId = await this.getIdTeacher(authId);
-
-            if(!accountTeacherId) {
-                response.abort("Professor não encontrado.");
-            }
+            const bankInfo = request.all();            
 
             const validationSchema = schema.create({
+                bankAccountId: schema.number(),
                 completeName: schema.string({
                     trim: true
                 }),
@@ -193,12 +210,45 @@ export default class AccountsController {
                 data: bankInfo
             });
 
-            await this.updateBankAccount(validatedSchema, accountTeacherId);
+            await this.updateBankAccount(validatedSchema);
 
-            response.ok({
-                status: 200,
-                message: "Dados bancários atualizados com sucesso!"
+            response.ok("Dados bancários atualizados com sucesso!");
+
+        } catch (error) {
+            console.log(error)
+            response.abort({
+                default: "Ocorreu um error na hora de atualizar os dados bancários, tente mais tarde.",
+                detail: error.body
+            }, 500);
+        }
+    }
+
+    public async UpdatePushToken({ response, request, auth } : HttpContextContract) {
+
+        try {
+            const authId = auth.user!.id;
+            const { token } = request.all();
+
+            const validationSchema = schema.create({
+                token: schema.string({
+                    trim: true
+                },[
+                    rules.required()
+                ])
             });
+
+            const validatedSchema = await validator.validate({
+                schema: validationSchema,
+                data: token
+            });
+
+            await Account.updateOrCreate({
+                tokenNotification: validatedSchema.token
+            }, {
+                authenticationId: authId
+            });
+
+            response.ok(200);
 
         } catch (error) {
             console.log(error)
@@ -208,7 +258,6 @@ export default class AccountsController {
                 detail: error.body
             });
         }
-
     }
 
     private async setAccountInfoStudent(Info : Object, idAccount: number, fullName : string) {
@@ -290,14 +339,13 @@ export default class AccountsController {
 
     }
 
-    private async updateBankAccount(bankInfo: any = {}, idAccountTeacher: number) {
+    private async updateBankAccount(bankInfo: any = {}) {
         try {
             const bank = await Bank.findByOrFail('code', bankInfo.code);
 
             await AccountBank.updateOrCreate({
-                accountTypeTeacherId: idAccountTeacher
+                id: bankInfo
             },{
-                accountTypeTeacherId: idAccountTeacher,
                 completeName: bankInfo.completeName,
                 agency: bankInfo.agency,
                 accountNumber: bankInfo.bankAccount,

@@ -19,6 +19,7 @@ export default class TeachersController {
                 account = await Database
                     .from("account_type_teachers")
                     .select([
+                        "account_type_teachers.id", 
                         "account_type_teachers.complete_name", 
                         "account_type_teachers.lecture_time", 
                         "account_type_teachers.lecture_value", 
@@ -170,6 +171,32 @@ export default class TeachersController {
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
                 detail: error.body
             });
+        }
+    }
+
+    /**
+     * 
+     * @param param0 
+     */
+    public async GetSelectedTeacher({ response, params } : HttpContextContract) {
+        const { teacherId } = params;
+
+        try {
+            const teacher = await AccountTypeTeacher.query().preload("lectures").where("id", teacherId).first();
+
+            if(!teacher) {
+                response.abort("Professor não encontrado.");
+            }
+
+            response.ok({
+                Teacher: teacher
+            });
+
+        } catch(error) {
+            response.abort({
+                default: "Ocorreu um error na hora de buscar a aula, tente mais tarde.",
+                detail: error.body
+            }, 500);
         }
     }
 
