@@ -5,11 +5,11 @@ export default class Notification extends BaseModel {
   @column({ isPrimary: true })
   public id: number;
 
-  @column()
+  @column({ columnName: "account_id" })
   public idAccount: number;
 
   @column()
-  public idNotification : number;
+  public seen : boolean;
 
   @column()
   public message: string;  

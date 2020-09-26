@@ -7,8 +7,8 @@ export default class Notifications extends BaseSchema {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table.integer("account_id").unsigned().references("id").inTable("accounts")
-      table.integer("type_id").unsigned().references("id").inTable("notification_types")
       table.string("message")
+      table.boolean("seen").defaultTo(false)
       table.timestamps(true)
     })
   }

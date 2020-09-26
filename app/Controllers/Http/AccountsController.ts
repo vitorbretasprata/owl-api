@@ -7,6 +7,9 @@ import AccountBank from "App/Models/AccountBank";
 import Bank from "App/Models/Bank";
 import LectureName from "App/Models/LectureName";
 import Database from '@ioc:Adonis/Lucid/Database';
+import Notification from "App/utilities/pushNotifications";
+import Notifications from "App/Models/Notification";
+
 
 export default class AccountsController {
 
@@ -25,7 +28,6 @@ export default class AccountsController {
             const validationSchema = schema.create({
                 authId: schema.number([
                     rules.required(),
-                    rules.unique({ table: "accounts", column: "authentication_id" })
                 ]),
                 type: schema.number([
                     rules.required(),
@@ -37,21 +39,24 @@ export default class AccountsController {
                 data: accountInfo
             });
 
-            const newAccount = await Account.create({
-                type: validatedSchema.type,
-                authenticationId: validatedSchema.authId
-            });
+             
+
+            const userAccount = await Account.query().where("authentication_id", validatedSchema.authId).first();
+
+            if(!userAccount) {
+                response.abort("Conta não encontrada, entre em contato com o suporte.", 500);
+            }
 
             let status;
-            switch(type) {
+            switch(validatedSchema.type) {
                 case 1: 
-                    status = await this.setAccountInfoStudent(info, newAccount.id, fullName);
+                    status = await this.setAccountInfoStudent(info, userAccount!.id, fullName);
                     break;
                 case 2: 
-                    status = await this.SetAccountInfoParent(info, newAccount.id);
+                    status = await this.SetAccountInfoParent(info, userAccount!.id);
                     break;
                 case 3: 
-                    status = await this.setAccountInfoTeacher(info, newAccount.id, fullName);
+                    status = await this.setAccountInfoTeacher(info, userAccount!.id, fullName);
                     break;
                 default:
                     response.abort("Tipo de conta inválida");
@@ -62,7 +67,7 @@ export default class AccountsController {
                 response.abort("Error ao salvar dados do usuário");
             }
 
-            response.ok(200);
+            response.ok(status);
 
         } catch (error) {
             console.log(error)
@@ -178,10 +183,9 @@ export default class AccountsController {
         } catch (error) {
             console.log(error)
             response.abort({
-                code: 500,
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
                 detail: error.body
-            });
+            }, 500);
         }
 
     }
@@ -227,7 +231,7 @@ export default class AccountsController {
 
         try {
             const authId = auth.user!.id;
-            const { token } = request.all();
+            const data = request.all();
 
             const validationSchema = schema.create({
                 token: schema.string({
@@ -239,24 +243,53 @@ export default class AccountsController {
 
             const validatedSchema = await validator.validate({
                 schema: validationSchema,
-                data: token
+                data: data
             });
 
-            await Account.updateOrCreate({
-                tokenNotification: validatedSchema.token
-            }, {
-                authenticationId: authId
+            await Account.query().where("authentication_id", authId).update({
+                token_notification: validatedSchema.token
             });
 
-            response.ok(200);
+            console.log("token Salvo")
+
+            response.ok("Token salvo com sucesso.");
 
         } catch (error) {
             console.log(error)
             response.abort({
-                code: 500,
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
                 detail: error.body
+            }, 500);
+        }
+    }
+
+    public async TestePushNotification({ response, request, auth } : HttpContextContract) {
+
+        try {
+            const authId = auth.user!.id;
+            const notification = new Notification();
+
+            const acc = await Account.query().select(["token_notification", "id"]).where("authentication_id", authId).first();
+
+            if(!acc) {
+                response.abort("Usuário não encontrado", 404);
+            }
+
+            notification.sendPushNotifications(acc?.tokenNotification, "Teste de notificação");
+
+            await Notifications.create({
+                idAccount: acc?.id,
+                message: "Teste de notificação"
             });
+
+            response.ok(acc);
+
+        } catch (error) {
+            console.log(error)
+            response.abort({
+                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
+                detail: error.body
+            }, 500);
         }
     }
 
@@ -264,12 +297,12 @@ export default class AccountsController {
 
         try {
 
-            await AccountTypeStudent.create({
+            const newAcc = await AccountTypeStudent.create({
                 idAccount: idAccount,
                 completeName: fullName
             });
 
-            return true;
+            return newAcc;
 
         } catch(error) {
             console.log(error);
@@ -331,7 +364,7 @@ export default class AccountsController {
 
             await this.updateLectures(Info.lectures, newAccountTeacher.id);
 
-            return true;
+            return newAccountTeacher;
 
         } catch (error) {
             console.log(error)
