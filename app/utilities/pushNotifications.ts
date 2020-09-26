@@ -21,11 +21,9 @@ export default class Notifications {
         const receiptIds : Array<any> = [];
 
         chunks.forEach(async chunk => {
-            console.log("sending chunk", chunk);
             try {
                 let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
 
-                console.log(ticketChunk);
                 tickets.push(...ticketChunk);
 
             } catch(error) {
@@ -48,11 +46,7 @@ export default class Notifications {
     private async retrieveBatches(receiptIdChunks : Array<any>, expo : any) {
         receiptIdChunks.forEach(async chunk => {
             try {
-                console.log(chunk);
-
                 let receipts = await expo.getPushNotificationReceiptsAsync(chunk);
-                console.log(receipts);
-
 
                 receipts.forEach(receiptId => {
                     let { status, message, details } = receipts[receiptId];

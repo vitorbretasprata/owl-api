@@ -250,8 +250,6 @@ export default class AccountsController {
                 token_notification: validatedSchema.token
             });
 
-            console.log("token Salvo")
-
             response.ok("Token salvo com sucesso.");
 
         } catch (error) {
