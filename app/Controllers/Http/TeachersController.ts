@@ -47,17 +47,18 @@ export default class TeachersController {
             const id = auth.user?.id || -1;
             const notification = new NotificationClass();
 
-            const userType = await Account.query().select(["id", "type", "token_notification"]).where("authentication_id", id).first();
-
-            const teacherNotificationToken = await Account.query()
+            const userType = await Database.query()
                 .select([
                     "accounts.token_notification",
-                    "accounts.id"
+                    "accounts.id",
+                    "accounts.type",
+                    "account_type_students.complete_name",
+                    "account_type_students.id as id_student"
                 ])
+                .from("accounts")
                 .where("authentication_id", id)
-                .innerJoin("account_type_teachers", "accounts.id", "account_type_teachers.account_id")
+                .innerJoin("account_type_students", "accounts.id", "account_type_students.account_id")
                 .first();
-
 
             if(userType?.type !== 1) {
                 response.abort("Seu tipo de conta não tem permissão para marcar aula.");
@@ -95,17 +96,33 @@ export default class TeachersController {
                 data: scheduleInfo
             });
 
+            const teacherNotificationToken = await Database.query()
+                .select([
+                    "accounts.token_notification",
+                    "accounts.id"
+                ])
+                .from("accounts")
+                .where("account_type_teachers.id", validatedSchema.idTeacher)
+                .innerJoin("account_type_teachers", "accounts.id", "account_type_teachers.account_id")
+                .first();
+
+
+            const solicitationDate = new Date(scheduleInfo.date);
+
             const res = await this.updateOrCreateClass(validatedSchema, userType?.type);
 
             if(!res) {
                 response.abort("Ocorreu um error na hora de agendar a aula, tente novamente.");
             }
 
-            notification.sendPushNotifications(teacherNotificationToken?.tokenNotification, "Teste");
+            const notificationMessage = `O estudante ${userType.complete_name} lhe enviou uma solicitação de agendamento de aula para o dia ${solicitationDate.getDate()}/${solicitationDate.getMonth() + 1}/${solicitationDate.getFullYear()} às ${solicitationDate.getHours()}:${solicitationDate.getMinutes()}, deseja aceitar?`;
+
+            notification.sendPushNotifications(teacherNotificationToken.token_notification, notificationMessage);
 
             await Notification.create({
-                idAccount: teacherNotificationToken?.id,
-                message: "Teste"
+                idAccount: teacherNotificationToken.id,
+                message: notificationMessage,
+                idAccountStudent: userType.id_student
             });
 
             response.ok(userType);
@@ -124,7 +141,7 @@ export default class TeachersController {
             const id = auth.user?.id || -1;
             const notification = new NotificationClass();
 
-            const userType = await Account.query().select(["type", "token_notification"]).where("authentication_id", id).first();
+            const userType = await Account.query().select(["id", "type", "token_notification"]).where("authentication_id", id).first();
 
             if(userType?.type !== 3 || !userType?.tokenNotification) {
                 response.abort("Seu tipo de conta não tem permissão para marcar aula.");
@@ -152,11 +169,29 @@ export default class TeachersController {
                 response.abort("Ocorreu um error na hora de confirmar a aula, tente novamente.");
             }
 
-            notification.sendPushNotifications(userType?.tokenNotification, "Sua aula com o professor foi confirmada.");
+            const student = await Database.query()
+                .select([
+                    "accounts.token_notification",
+                    "accounts.id"
+                ])
+                .from("accounts")
+                .where("account_type_students.id", res?.idStudent)
+                .innerJoin("account_type_students", "accounts.id", "account_type_students.account_id")
+                .first();
+
+
+            const solicitationDate = new Date(res?.date);
+            const notificationMessage = `Sua aula do dia ${solicitationDate.getDate()}/${solicitationDate.getMonth() + 1}/${solicitationDate.getFullYear()} às ${solicitationDate.getHours()}:${solicitationDate.getMinutes()} foi confirmada.`;
+
+            if(!student?.token_notification) {
+                response.abort("Este usuário não possui token de notificação.");
+            }
+
+            notification.sendPushNotifications(student?.token_notification, notificationMessage);
 
             await Notification.create({
-                idAccount: userType?.id,
-                message: "Teste"
+                idAccount: student?.id,
+                message: notificationMessage
             });
 
             response.ok("Solicitação de agendamento de aula criada com sucesso, aguarde a resposta do professor.");
@@ -340,18 +375,22 @@ export default class TeachersController {
 
             await Database.rawQuery(`DELETE FROM scheduled_classes WHERE ${columnType} = ? AND id = ?`, [userId, classId]);
 
-            notification.sendPushNotifications(studentNotificationToken, `Sua aula com o professor ${teacherName} foi cancelada.`);
-            notification.sendPushNotifications(teacherNotificationToken, `Sua aula com o aluno ${studentName} foi cancelada.`);
+            const notificationToStudent = `Sua aula com o professor ${teacherName} foi cancelada.`
+            const notificationToTeacher = `Sua aula com o aluno ${studentName} foi cancelada.`
+
+
+            notification.sendPushNotifications(studentNotificationToken, notificationToStudent);
+            notification.sendPushNotifications(teacherNotificationToken, notificationToTeacher);
 
 
             await Notification.createMany([
                 {
                     idAccount: userStudent?.id,
-                    message: `Sua aula com o professor ${teacherName} foi cancelada.`
+                    message: notificationToStudent
                 },
                 {
                     idAccount: userTeacher?.id,
-                    message: `Sua aula com o aluno ${studentName} foi cancelada.`
+                    message: notificationToTeacher
                 }
             ]);
 
@@ -414,11 +453,15 @@ export default class TeachersController {
     private async updateScheduledClass(status : number, idClass : number = 0) {
         try {
             if(status === 2) {
-                const res = await ScheduledClass.query().where("id", idClass).update({
+                const res = await ScheduledClass.query().select("*").where("id", idClass).first();
+
+                await ScheduledClass.query().where("id", idClass).update({
                     status: status
                 });
 
-                return true;
+
+
+                return res;
             }
 
             return false;

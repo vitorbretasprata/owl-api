@@ -8,6 +8,9 @@ export default class Notification extends BaseModel {
   @column({ columnName: "account_id" })
   public idAccount: number;
 
+  @column({ columnName: "account_student_id" })
+  public idAccountStudent : number;
+
   @column()
   public seen : boolean;
 
