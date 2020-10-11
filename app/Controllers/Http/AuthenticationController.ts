@@ -37,15 +37,22 @@ export default class AuthenticationController {
 
             response.ok({
                 ...token.toJSON(),
+                complete_name: authUser?.name,
                 type: userInfo.type,
                 id: userInfo.id
             });
         } catch (error) {
 
-            console.log(error);
+            console.log(error)
+            if(error.messages && error.messages.errors) {
+                response.abort({
+                    message: error.messages.errors[0].message
+                }, 400);
+            }
+
             response.abort({
-                message: "Credenciais inválidas."
-            }, 404);
+                message: "Houve um error no servidor, tente denovo mais tarde."
+            }, 500);
         }
     }
 
@@ -69,41 +76,53 @@ export default class AuthenticationController {
     }
 
     public async Register({ request, response }: HttpContextContract) {
-
-        const validationSchema = schema.create({
-            name: schema.string({ trim: true }, [
-                rules.minLength(2)
-            ]),
-            email: schema.string({ trim: true }, [
-              rules.email(),
-              rules.unique({ table: 'authentications', column: 'email' })
-            ]),
-            password: schema.string({ trim: true }, [
-                rules.confirmed(),
-                rules.minLength(6)
-            ])
-        });
-
-        const validatedData = await request.validate({
-            schema: validationSchema,
-            reporter: validator.reporters.api,
-            messages: {
-                'email.unique': 'Email já cadastrado.',
-                'password.minLength': 'Senha deve conter no minimo 6 caracteres.',
-                'password.confirmed': 'Senhas não batem.',
+        try {
+            const validationSchema = schema.create({
+                name: schema.string({ trim: true }, [
+                    rules.minLength(2)
+                ]),
+                email: schema.string({ trim: true }, [
+                  rules.email(),
+                  rules.unique({ table: 'authentications', column: 'email' })
+                ]),
+                password: schema.string({ trim: true }, [
+                    rules.confirmed(),
+                    rules.minLength(6)
+                ])
+            });
+    
+            const validatedData = await request.validate({
+                schema: validationSchema,
+                reporter: validator.reporters.api,
+                messages: {
+                    'name.minLength': 'O nome deve conter pelo menos 2 letras.',
+                    'email.unique': 'Email já cadastrado.',
+                    'password.minLength': 'Senha deve conter no minimo 6 caracteres.',
+                    'password_confirmation.confirmed': 'Senhas não batem.',
+                }
+            });
+    
+            await Authentication.create({
+                name: validatedData.name,
+                email: validatedData.email,
+                password: validatedData.password
+            });
+    
+            response.ok("Dados cadastrados com sucesso.");
+        } catch(error) {
+            console.log(error)
+            if(error.messages && error.messages.errors) {
+                response.abort({
+                    message: error.messages.errors[0].message
+                }, 400);
             }
-        });
 
-        await Authentication.create({
-            name: validatedData.name,
-            email: validatedData.email,
-            password: validatedData.password
-        });
+            response.abort({
+                message: "Houve um error no servidor, tente denovo mais tarde."
+            }, 500);
+        }
 
-        response.ok({
-            status: 200,
-            message: "Dados cadastrados com sucesso."
-        });
+        
     }
 
     public async confirmEmail({ request, response }: HttpContextContract) {
@@ -111,17 +130,21 @@ export default class AuthenticationController {
         try {
             const { email } = request.all();
 
-            const isEmailRegistered = await Authentication.query().select(["email"]).where("email", email);
+            const trimedEmail = email.trim();
+
+            const isEmailRegistered = await Authentication.query().select(["email"]).where("email", trimedEmail).first();
 
             if(!isEmailRegistered) {
-                response.abort("Email não encontrado", 422);
+                response.abort({
+                    message: "Email inválido ou não encontrado."
+                }, 404);
             }
 
             const resetCode = this.generateRandomNumber(100000, 999999);
 
             await Mail.send((message) => {
                 message
-                    .to(email)
+                    .to(trimedEmail)
                     .from('vitorbretasprata@gmail.com')
                     .subject("Redefinir senha")
                     .htmlView('emails/reset_code', { code: resetCode })
@@ -133,11 +156,13 @@ export default class AuthenticationController {
             });
 
         } catch (error) {
+            if(error.body && error.body.message) {
+                response.abort(error.body, error.status);
+            }
+
             response.abort({
-                code: 500,
-                default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
-                detail: error.body
-            });
+                message: "Houve um error no servidor, tente denovo mais tarde."
+            }, 500);
         }
     }
 

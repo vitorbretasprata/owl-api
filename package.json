@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@adonisjs/ace": "^6.9.3",
-    "@adonisjs/auth": "^4.2.4",
-    "@adonisjs/core": "^5.0.0-preview-rc-1.9",
+    "@adonisjs/auth": "^4.3.1",
+    "@adonisjs/core": "^5.0.0-preview-rc-1.12",
     "@adonisjs/fold": "^6.3.5",
     "@adonisjs/lucid": "^8.1.1",
     "@adonisjs/mail": "^4.2.2",
@@ -29,6 +29,8 @@
     "@adonisjs/view": "^2.0.8",
     "expo-server-sdk": "^3.5.1",
     "mysql": "^2.18.1",
+    "phc-argon2": "^1.0.10",
+    "phc-bcrypt": "^1.0.3",
     "proxy-addr": "^2.0.6",
     "reflect-metadata": "^0.1.13",
     "source-map-support": "^0.5.19"

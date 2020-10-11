@@ -39,8 +39,6 @@ export default class AccountsController {
                 data: accountInfo
             });
 
-             
-
             const userAccount = await Account.query().where("authentication_id", validatedSchema.authId).first();
 
             if(!userAccount) {
@@ -50,7 +48,7 @@ export default class AccountsController {
             let status;
             switch(validatedSchema.type) {
                 case 1: 
-                    status = await this.setAccountInfoStudent(info, userAccount!.id, fullName);
+                    status = await this.setAccountInfoStudent(info, validatedSchema.type , userAccount!.id, fullName);
                     break;
                 case 2: 
                     status = await this.SetAccountInfoParent(info, userAccount!.id);
@@ -59,12 +57,12 @@ export default class AccountsController {
                     status = await this.setAccountInfoTeacher(info, userAccount!.id, fullName);
                     break;
                 default:
-                    response.abort("Tipo de conta inválida");
+                    response.abort("Tipo de conta inválida", 400);
                     break;
             }
 
             if(!status) {
-                response.abort("Error ao salvar dados do usuário");
+                response.abort("Error ao salvar dados do usuário", 500);
             }
 
             response.ok(status);
@@ -291,9 +289,13 @@ export default class AccountsController {
         }
     }
 
-    private async setAccountInfoStudent(Info : Object, idAccount: number, fullName : string) {
+    private async setAccountInfoStudent(Info : Object, type : number, idAccount: number, fullName : string) {
 
         try {
+
+            await Account.query().where("id", idAccount).update({
+                type: type
+            });
 
             const newAcc = await AccountTypeStudent.create({
                 idAccount: idAccount,
