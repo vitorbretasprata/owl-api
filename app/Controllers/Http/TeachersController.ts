@@ -28,11 +28,25 @@ export default class TeachersController {
                         "account_type_teachers.movement_value",
                         "teacher_lectures.lecture_id"
                     ])
-                    .distinct()
+                    .distinct('account_type_teachers.id')
                     .where("teacher_lectures.lecture_id", filter.lecture_id)
                     .innerJoin("teacher_lectures", "account_type_teachers.id", "teacher_lectures.account_teacher_id")
                     .paginate(page, limit);
 
+            } else {
+                account = await Database
+                    .from("account_type_teachers")
+                    .select([
+                        "account_type_teachers.id", 
+                        "account_type_teachers.complete_name", 
+                        "account_type_teachers.lecture_time", 
+                        "account_type_teachers.lecture_value", 
+                        "account_type_teachers.movement_value",
+                        "teacher_lectures.lecture_id"
+                    ])
+                    .distinct('account_type_teachers.id')
+                    .innerJoin("teacher_lectures", "account_type_teachers.id", "teacher_lectures.account_teacher_id")
+                    .paginate(page, limit);
             }
 
             response.ok(account)
@@ -214,6 +228,7 @@ export default class TeachersController {
             const { date } = request.all();
 
             const userType = await this.getUserId(auth.user?.id);
+
             if(userType === false) {
                 response.abort("Usuário não encontrado");
             }
@@ -221,7 +236,7 @@ export default class TeachersController {
             const columnType = (userType && userType.type === 1) ? 'student_id' : 'teacher_id';
             const userId = (userType && userType.id) ? userType.id : 0;
 
-            const classes = await Database.rawQuery(`SELECT * FROM scheduled_classes WHERE ${columnType} = ? AND date LIKE ?`, [userId, `${date}%`]);
+            const classes = await Database.rawQuery(`SELECT DISTINCT * FROM scheduled_classes WHERE ${columnType} = ? AND date LIKE ?`, [userId, `${date}%`]);
 
             response.ok(classes[0]);
 
@@ -329,12 +344,14 @@ export default class TeachersController {
         try {
             const { classId } = params;
             const id = auth.user?.id || -1;
+
+            console.log(classId, id)
             const notification = new NotificationClass();
 
             const userType = await this.getUserId(id);
 
             if(userType === false) {
-                response.abort("Usuário não encontrado");
+                response.abort("Usuário não encontrado", 404);
             }
 
             const columnType = (userType && userType.type === 1) ? 'student_id' : 'teacher_id';
@@ -342,36 +359,36 @@ export default class TeachersController {
 
             const cancelingClass = await ScheduledClass.query().where("id", classId).first();
 
-            const userStudent = await Database
-                .from("accounts")
+            const userStudent = await Database.query()
                 .select([
                     "accounts.id",
                     "accounts.token_notification", 
                     "account_type_students.complete_name"
                 ])
-                .innerJoin("account_type_students", "account.id", "account_type_students.account_id")
+                .from("accounts")
                 .where("account_type_students.id", cancelingClass!.idStudent)
+                .innerJoin("account_type_students", "accounts.id", "account_type_students.account_id")
                 .first();
 
-            const userTeacher = await Database
-                .from("accounts")
+            const userTeacher = await Database.query()
                 .select([
                     "accounts.id",
                     "accounts.token_notification", 
                     "account_type_teachers.complete_name"
                 ])
-                .innerJoin("account_type_teachers", "account.id", "account_type_teachers.account_id")
+                .from("accounts")
                 .where("account_type_teachers.id", cancelingClass!.idTeacher)
+                .innerJoin("account_type_teachers", "accounts.id", "account_type_teachers.account_id")
                 .first();
 
             if(!userStudent || !userStudent || !cancelingClass) {
-                response.abort("Aula inválida.");
+                response.abort("Aula inválida.", 404);
             }
 
             let studentNotificationToken : string = userStudent!.tokenNotification || "";
             let teacherNotificationToken : string = userTeacher!.tokenNotification || "";
-            let studentName : string = userStudent!.completeName || ""
-            let teacherName : string = userTeacher!.completeName || ""
+            let studentName : string = userStudent!.complete_name || ""
+            let teacherName : string = userTeacher!.complete_name || ""
 
             await Database.rawQuery(`DELETE FROM scheduled_classes WHERE ${columnType} = ? AND id = ?`, [userId, classId]);
 
@@ -397,6 +414,7 @@ export default class TeachersController {
             response.ok(200);
 
         } catch(error) {
+            console.log(error)
             response.abort({
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
                 detail: error.body

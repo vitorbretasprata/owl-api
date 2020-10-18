@@ -7,5 +7,5 @@ Route.group(() => {
     Route.put("/updateTeacherInfo", "AccountsController.UpdateTeacherInfo"),
     Route.put("/updateTeacherBankInfo", "AccountsController.UpdateTeacherBankInfo"),
     Route.put("/updatePushToken", "AccountsController.UpdatePushToken"),
-    Route.get("/testPushNotification", "AccountsController.TestePushNotification")
+    Route.post("/getNotifications", "AccountsController.GetNotifications")
 }).prefix("/account").middleware('auth');

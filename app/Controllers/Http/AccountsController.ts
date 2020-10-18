@@ -48,13 +48,13 @@ export default class AccountsController {
             let status;
             switch(validatedSchema.type) {
                 case 1: 
-                    status = await this.setAccountInfoStudent(info, validatedSchema.type , userAccount!.id, fullName);
+                    status = await this.setAccountInfoStudent(info, validatedSchema.type, userAccount!.id, fullName);
                     break;
                 case 2: 
                     status = await this.SetAccountInfoParent(info, userAccount!.id);
                     break;
                 case 3: 
-                    status = await this.setAccountInfoTeacher(info, userAccount!.id, fullName);
+                    status = await this.setAccountInfoTeacher(info, validatedSchema.type, userAccount!.id, fullName);
                     break;
                 default:
                     response.abort("Tipo de conta inválida", 400);
@@ -143,10 +143,9 @@ export default class AccountsController {
         } catch (error) {
             console.log(error)
             response.abort({
-                code: 500,
                 default: "Ocorreu um error na hora de listar os professores, tente mais tarde.",
                 detail: error.body
-            });
+            }, 500);
         }
 
     }
@@ -195,7 +194,7 @@ export default class AccountsController {
             const bankInfo = request.all();            
 
             const validationSchema = schema.create({
-                bankAccountId: schema.number(),
+                accountTypeTeacherId: schema.number(),
                 completeName: schema.string({
                     trim: true
                 }),
@@ -289,6 +288,35 @@ export default class AccountsController {
         }
     }
 
+    public async GetNotifications({ response, request, auth } : HttpContextContract) {
+        try {
+            const authId = auth.user!.id;
+
+            const { page, limit } = request.all()
+
+            const acc = await Account.query().select(["id"]).where("authentication_id", authId).first();
+
+            if(!acc) {
+                response.abort("Usuário não encontrado", 404);
+            }
+
+            const notification = await Notifications
+                .query()
+                .select('*')
+                .where("account_id", acc?.id)
+                .paginate(page, limit);
+
+            response.ok(notification);
+
+        } catch (error) {
+            console.log(error)
+            response.abort({
+                default: "Ocorreu um error na hora de listar os as notificações, tente mais tarde.",
+                detail: error.body
+            }, 500);
+        }
+    }
+
     private async setAccountInfoStudent(Info : Object, type : number, idAccount: number, fullName : string) {
 
         try {
@@ -311,7 +339,7 @@ export default class AccountsController {
         }
     }
 
-    private async setAccountInfoTeacher(Info : any = {}, idAccount: number, fullName : string) {
+    private async setAccountInfoTeacher(Info : any = {}, type: number, idAccount: number, fullName : string) {
 
         try {
 
@@ -350,6 +378,9 @@ export default class AccountsController {
                 data: Info
             });
 
+            await Account.query().where("id", idAccount).update({
+                type: type
+            });
 
             const newAccountTeacher = await AccountTypeTeacher.create({
                 accountId: idAccount,
@@ -372,20 +403,26 @@ export default class AccountsController {
 
     }
 
-    private async updateBankAccount(bankInfo: any = {}) {
+    private async updateBankAccount(bankInfo: any = {}, accountTeacherId : number = 0) {
         try {
-            const bank = await Bank.findByOrFail('code', bankInfo.code);
+            if(accountTeacherId !== 0) {
+                bankInfo.accountTypeTeacherId = accountTeacherId
+            } 
+
+            const bank = await Bank.query().select("*").where('code', bankInfo.code).first();
 
             await AccountBank.updateOrCreate({
-                id: bankInfo
+                accountTypeTeacherId: bankInfo.accountTypeTeacherId
             },{
                 completeName: bankInfo.completeName,
                 agency: bankInfo.agency,
                 accountNumber: bankInfo.bankAccount,
+                accountTypeTeacherId: bankInfo.accountTypeTeacherId,
                 cpf: bankInfo.cpf,
                 bankId: bank.id
             });
         } catch (error) {
+            console.log(error)
             throw new Error("Código do banco não encontrado");
         }
     }
