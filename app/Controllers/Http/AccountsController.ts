@@ -419,7 +419,7 @@ export default class AccountsController {
                 accountNumber: bankInfo.bankAccount,
                 accountTypeTeacherId: bankInfo.accountTypeTeacherId,
                 cpf: bankInfo.cpf,
-                bankId: bank.id
+                bankId: bank.id || 1
             });
         } catch (error) {
             console.log(error)
